@@ -1,0 +1,34 @@
+# Data & artefak besar (JANGAN di-commit)
+data/**
+features/**
+models/**
+outputs/**
+
+# Tetap simpan struktur folder lewat .gitkeep
+!data/
+!data/*/
+!data/**/.gitkeep
+!features/
+!features/.gitkeep
+!models/
+!models/.gitkeep
+!outputs/
+!outputs/*/
+!outputs/**/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Kaggle
+kaggle.json
+.kaggle_build/

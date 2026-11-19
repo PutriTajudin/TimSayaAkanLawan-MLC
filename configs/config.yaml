@@ -1,0 +1,22 @@
+SEED: 42
+
+FPS: 30
+SEQ_LEN: 30
+N_FOLDS: 5
+
+paths:
+  raw: data/raw
+  frames: data/frames
+  annotations: annotations
+  folds: annotations/folds.csv
+  features: features
+  models: models
+  oof: outputs/oof_predictions
+  submissions: outputs/submissions
+  logs: logs/experiments.csv
+
+kaggle:
+  username: putritajudin0
+  competition: data-slayer-4
+  src_dataset: mlc-src          # dataset berisi src/, configs/, annotations/
+  accelerator: NvidiaTeslaT4    # GPU T4 x2
