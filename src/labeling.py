@@ -14,6 +14,15 @@ def gabung_interval(interval):
     return hasil
 
 
+def frame_dalam_interval(mulai, interval, panjang=30):
+    """Berapa frame dari potongan [mulai, mulai + panjang) yang masuk ke interval-interval ini."""
+    akhir = mulai + panjang
+    total = 0
+    for a, b in gabung_interval(interval):
+        total += max(0, min(akhir, b) - max(mulai, a))
+    return total
+
+
 def label_potongan(mulai, interval_cheat, panjang=30):
     """Beri label potongan frame [mulai, mulai + panjang).
     Return (label, jumlah_frame_cheat):
@@ -22,10 +31,7 @@ def label_potongan(mulai, interval_cheat, panjang=30):
       - tepat setengah                   -> None (potongan tidak dipakai)
     Batas setengah adalah terjemahan tim atas kata 'perilaku dominan' di FAQ 41,
     bukan aturan resmi panitia."""
-    akhir = mulai + panjang
-    n_cheat = 0
-    for a, b in gabung_interval(interval_cheat):
-        n_cheat += max(0, min(akhir, b) - max(mulai, a))
+    n_cheat = frame_dalam_interval(mulai, interval_cheat, panjang)
     setengah = panjang / 2
     if n_cheat > setengah:
         return 1, n_cheat
