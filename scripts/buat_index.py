@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cv2
 import pandas as pd
 
-from src.data import ROOT, get_path, load_config
+from src.data import ON_KAGGLE, ROOT, get_path, load_config
 from src.labeling import frame_dalam_interval, gabung_interval, label_potongan
 
 
@@ -71,7 +71,7 @@ def main():
     folds = folds.set_index("subject")["fold"].to_dict()
 
     anotasi, anotasi_ragu, df_anotasi = baca_anotasi(anotasi_dir)
-    if df_anotasi is not None:
+    if df_anotasi is not None and not ON_KAGGLE:  # di Kaggle folder annotations hanya-baca
         df_anotasi.to_csv(anotasi_dir / "annotations_all.csv", index=False, lineterminator="\n")
 
     baris, belum = [], []
@@ -114,7 +114,7 @@ def main():
         print(f"PERINGATAN: {len(belum)} video cheat belum dianotasi (dipakai label video).")
 
     df = pd.DataFrame(baris)
-    out = ROOT / args.out
+    out = (Path("/kaggle/working") if ON_KAGGLE else ROOT) / args.out
     out.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out, index=False)
     pakai = df[df["dipakai"]]

@@ -2,7 +2,8 @@
 
 Pemakaian (dari root repo):
     python scripts/kaggle_run.py upload-src        # kirim src/, configs/, annotations/ ke Kaggle
-    python scripts/kaggle_run.py push 03           # jalankan notebooks/03_*.ipynb di GPU Kaggle
+    python scripts/kaggle_run.py push 03           # kirim + tunggu sampai selesai + unduh hasil
+    python scripts/kaggle_run.py push 03 --no-wait # kirim saja, jangan ditunggu
     python scripts/kaggle_run.py push 01 --cpu     # tanpa GPU (hemat kuota)
     python scripts/kaggle_run.py status 03         # cek running / complete / error
     python scripts/kaggle_run.py output 03         # unduh hasil ke outputs/kaggle/<nama-kernel>/
@@ -12,9 +13,11 @@ sebelum `push`.
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -22,7 +25,27 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".kaggle_build"
 CFG = yaml.safe_load((ROOT / "configs" / "config.yaml").read_text(encoding="utf-8"))["kaggle"]
-USER = CFG["username"]
+
+
+def _cari_username() -> str:
+    """Akun Kaggle milik orang yang menjalankan skrip ini (bukan akun Putri secara paksa).
+
+    Urutan: variabel KAGGLE_USERNAME -> ~/.kaggle/kaggle.json -> config.yaml.
+    """
+    if os.environ.get("KAGGLE_USERNAME"):
+        return os.environ["KAGGLE_USERNAME"]
+    kj = Path.home() / ".kaggle" / "kaggle.json"
+    if kj.exists():
+        try:
+            nama = json.loads(kj.read_text(encoding="utf-8")).get("username")
+            if nama:
+                return nama
+        except (OSError, ValueError):
+            pass
+    return CFG["username"]
+
+
+USER = _cari_username()
 
 # Notebook yang butuh output notebook lain (dipasang lewat kernel_sources)
 DEPENDS = {
@@ -83,6 +106,46 @@ def upload_src(message: str) -> None:
     print("Tunggu ~1 menit sampai dataset selesai diproses sebelum push notebook.")
 
 
+def get_status(num: str) -> str:
+    """Kembalikan RUNNING / QUEUED / COMPLETE / ERROR / CANCEL... (huruf besar)."""
+    r = subprocess.run(
+        ["kaggle", "kernels", "status", kernel_id(num)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    teks = (r.stdout + r.stderr).upper()
+    for kata in ("COMPLETE", "ERROR", "CANCEL", "RUNNING", "QUEUED"):
+        if kata in teks:
+            return kata
+    return "UNKNOWN: " + (r.stdout + r.stderr).strip()[:200]
+
+
+def wait_done(num: str, tiap: int = 30, batas_menit: int = 600) -> str:
+    """Tunggu sampai notebook selesai. Aman dihentikan dengan Ctrl+C (notebook tetap jalan di Kaggle)."""
+    mulai = time.time()
+    terakhir = None
+    while True:
+        st = get_status(num)
+        if st != terakhir:
+            print(f"[{time.strftime('%H:%M:%S')}] status: {st}")
+            terakhir = st
+        if st in ("COMPLETE", "ERROR", "CANCEL"):
+            return st
+        if st.startswith("UNKNOWN"):
+            print("Status tidak terbaca. Cek manual dengan: python scripts/kaggle_run.py status", num)
+        if time.time() - mulai > batas_menit * 60:
+            print("Batas tunggu habis; notebook mungkin masih jalan di Kaggle.")
+            return st
+        time.sleep(tiap)
+
+
+def download_output(num: str) -> Path:
+    dest = ROOT / "outputs" / "kaggle" / kernel_slug(num)
+    dest.mkdir(parents=True, exist_ok=True)
+    run(["kaggle", "kernels", "output", kernel_id(num), "-p", str(dest), "-o"])
+    print(f"Hasil tersimpan di {dest}")
+    return dest
+
+
 def push(num: str, cpu: bool) -> None:
     nb = find_notebook(num)
     slug = kernel_slug(num)
@@ -121,6 +184,7 @@ def main() -> None:
     p = sub.add_parser("push")
     p.add_argument("num")
     p.add_argument("--cpu", action="store_true")
+    p.add_argument("--no-wait", action="store_true", help="kirim saja, tidak menunggu selesai")
     for name in ("status", "output"):
         sub.add_parser(name).add_argument("num")
     a = ap.parse_args()
@@ -129,13 +193,19 @@ def main() -> None:
         upload_src(a.message)
     elif a.cmd == "push":
         push(a.num, a.cpu)
+        if a.no_wait:
+            print("Tidak menunggu. Cek nanti: python scripts/kaggle_run.py status", a.num)
+        else:
+            st = wait_done(a.num)
+            if st == "COMPLETE":
+                download_output(a.num)  # sekalian membawa log
+            else:
+                print(f"Notebook berakhir dengan status {st}. Buka log di browser untuk melihat penyebabnya.")
+                sys.exit(1)
     elif a.cmd == "status":
-        run(["kaggle", "kernels", "status", kernel_id(a.num)])
+        print(get_status(a.num))
     elif a.cmd == "output":
-        dest = ROOT / "outputs" / "kaggle" / kernel_slug(a.num)
-        dest.mkdir(parents=True, exist_ok=True)
-        run(["kaggle", "kernels", "output", kernel_id(a.num), "-p", str(dest), "-o"])
-        print(f"Hasil tersimpan di {dest}")
+        download_output(a.num)
 
 
 if __name__ == "__main__":
