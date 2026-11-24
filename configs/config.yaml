@@ -3,7 +3,7 @@ SEED: 42
 FPS: 30
 SEQ_LEN: 30
 N_FOLDS: 5
-METRIC: f1          # CEK di halaman kompetisi: f1 | f1_macro | accuracy | auc | logloss
+METRIC: f1_macro    # metrik lomba Data Slayer 4.0 = F1-Macro (f1 | f1_macro | accuracy | auc | logloss)
 
 paths:
   raw: data/raw
