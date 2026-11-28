@@ -14,6 +14,7 @@ sebelum `push`.
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -52,6 +53,9 @@ DEPENDS = {
     "04": ["03"],
     "05": ["03"],
     "06": ["03", "05"],
+    "07": ["03"],
+    "08": [],      # baca langsung dari data kompetisi (raw), tidak butuh output notebook 03
+    "09": ["08"],
 }
 
 
@@ -107,16 +111,23 @@ def upload_src(message: str) -> None:
 
 
 def get_status(num: str) -> str:
-    """Kembalikan RUNNING / QUEUED / COMPLETE / ERROR / CANCEL... (huruf besar)."""
+    """Kembalikan RUNNING / QUEUED / COMPLETE / ERROR / CANCEL / UNKNOWN: ... (huruf besar).
+
+    Hanya membaca kata status dari kalimat 'has status "..."'. Pesan error jaringan sementara
+    TIDAK dianggap status ERROR (sebelumnya kata 'error' di mana pun dianggap notebook gagal).
+    """
     r = subprocess.run(
         ["kaggle", "kernels", "status", kernel_id(num)],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
-    teks = (r.stdout + r.stderr).upper()
-    for kata in ("COMPLETE", "ERROR", "CANCEL", "RUNNING", "QUEUED"):
-        if kata in teks:
-            return kata
-    return "UNKNOWN: " + (r.stdout + r.stderr).strip()[:200]
+    teks = (r.stdout + r.stderr).strip()
+    m = re.search(r'has status\s+"?(?:KernelWorkerStatus\.)?([A-Za-z_]+)"?', teks)
+    if not m:
+        return "UNKNOWN: " + teks[:200]
+    kata = m.group(1).upper()
+    if kata.startswith("CANCEL"):
+        return "CANCEL"
+    return kata
 
 
 def wait_done(num: str, tiap: int = 30, batas_menit: int = 600) -> str:
